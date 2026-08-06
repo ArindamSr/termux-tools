@@ -1,251 +1,213 @@
 #!/usr/bin/env bash
-# Ultimate Termux Phone Manager Dashboard
-# All-in-one suite for file organization, media ripping, wireless sharing, app launching, and remote ADB control.
+# Termux Mobile Tactical Control Dashboard
+# Features deep Android automation wrapped in a high-tech terminal matrix interface
 
-# Colors for UI
+# Colors for a sleek, intimidating hacking aesthetic
 GREEN='\033[0;32m'
+LIGHT_GREEN='\033[1;32m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+FLASH_RED='\033[5;31m'
 NC='\033[0m'
 
-# Ensure storage is safely linked
 init_storage() {
     if [ ! -d "$HOME/storage" ]; then
-        echo -e "${YELLOW}[!] Setting up Android storage links...${NC}"
+        echo -e "${YELLOW}[!] Mapping system storage framework...${NC}"
         termux-setup-storage
-        sleep 3
+        sleep 2
     fi
 }
 
+# The Hollywood Hacking Matrix Banner
 show_menu() {
     clear
-    echo -e "${CYAN}===========================================${NC}"
-    echo -e "${GREEN}      ULTIMATE PHONE CONTROL DASHBOARD      ${NC}"
-    echo -e "${CYAN}===========================================${NC}"
-    echo -e "${YELLOW}1)${NC} Bulk Image Organizer (Sort Camera Roll)"
-    echo -e "${YELLOW}2)${NC} Wireless Phone-to-PC Share (Start Server)"
-    echo -e "${YELLOW}3)${NC} Lightning File Finder (Search Device)"
-    echo -e "${YELLOW}4)${NC} Universal Media Ripper (Video/Audio Downloader)"
-    echo -e "${YELLOW}5)${NC} App Fast-Launcher (Open Android Apps)"
-    echo -e "${YELLOW}6)${NC} Text Editor Portal (Quick Notes & Docs)"
-    echo -e "${GREEN}7)${NC} Wireless ADB Remote Controller"
-    echo -e "${YELLOW}8)${NC} Exit Dashboard"
-    echo -e "${CYAN}===========================================${NC}"
-    echo -n "Select an option [1-8]: "
+    echo -e "${GREEN}┌────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${GREEN}│${LIGHT_GREEN}  [!] TACTICAL MOBILE DATA RECON & MANAGEMENT MATRIX   ${GREEN}│${NC}"
+    echo -e "${GREEN}└────────────────────────────────────────────────────────┘${NC}"
+    echo -e " ${CYAN}SYSTEM STATUS:${NC} ONLINE   ${CYAN}STORAGE:${NC} LINKED   ${CYAN}KERNEL:${NC} SECURE"
+    echo -e "${GREEN}──────────────────────────────────────────────────────────${NC}"
+    echo -e "  ${LIGHT_GREEN}[1]${NC} Bulk Image Organizer (Scrape & Clear Clutter)"
+    echo -e "  ${LIGHT_GREEN}[2]${NC} Wireless Phone-to-PC File Drop (Local Web Node)"
+    echo -e "  ${LIGHT_GREEN}[3]${NC} Universal Media Ripper & Audio Extractor (yt-dlp)"
+    echo -e "  ${LIGHT_GREEN}[4]${NC} Android Application Fast-Launcher Engine"
+    echo -e "  ${LIGHT_GREEN}[5]${NC} Text Editor Portal & Code Notes Workspace"
+    echo -e "  ${RED}──[ ADVANCED AUTOMATIONS & CYBER SIMULATIONS ]──${NC}"
+    echo -e "  ${YELLOW}[6]${NC} Automated Thermal Battery Watchdog (Overheat Alert)"
+    echo -e "  ${YELLOW}[7]${NC} Interactive Cyber-Threat Matrix (Hacker Simulator)"
+    echo -e "  ${RED}[8] Emergency Terminal Killswitch (Exit)${NC}"
+    echo -e "${GREEN}──────────────────────────────────────────────────────────${NC}"
+    echo -n " [?] Input Terminal Directive [1-8]: "
 }
 
 # 1. Bulk Image Organizer
 organize_images() {
-    echo -e "\n${GREEN}[+] Starting Bulk Image Organizer...${NC}"
+    echo -e "\n${GREEN}[+] Executing File Scrape Operations...${NC}"
     init_storage
     CAMERA_DIR="$HOME/storage/dcim/Camera"
     TARGET_DIR="$HOME/storage/pictures/Organized_Photos"
 
     if [ ! -d "$CAMERA_DIR" ]; then
-        echo -e "${RED}[!] Error: Camera directory not found at $CAMERA_DIR${NC}"
-        read -p "Press [Enter] to return..."
+        echo -e "${RED}[!] Error: Targeted file pathway not found: $CAMERA_DIR${NC}"
+        read -p "Press [Enter] to cycle..."
         return
     fi
 
     mkdir -p "$TARGET_DIR/Screenshots" "$TARGET_DIR/Photos"
-    screenshot_count=0
-    photo_count=0
+    sc_count=0; ph_count=0
 
     for file in "$CAMERA_DIR"/*; do
         if [[ -f "$file" && "$file" =~ \.(jpg|jpeg|png|webp|JPG|JPEG|PNG)$ ]]; then
             filename=$(basename "$file")
+            echo -e "${CYAN}[*] Intercepting: $filename${NC}"
             if [[ "$filename" == *"Screenshot"* || "$filename" == *"screenshot"* ]]; then
                 mv "$file" "$TARGET_DIR/Screenshots/"
-                ((screenshot_count++))
+                ((sc_count++))
             else
-                if [[ "$filename" =~ (20[0-9]{2})[-_]?([0-1][0-9]) ]]; then
-                    YEAR="${BASH_REMATCH[1]}"
-                    MONTH="${BASH_REMATCH[2]}"
-                else
-                    YEAR=$(date -r "$file" +"%Y")
-                    MONTH=$(date -r "$file" +"%m")
-                fi
-                MONTH_DIR="$TARGET_DIR/Photos/$YEAR-$MONTH"
-                mkdir -p "$MONTH_DIR"
-                mv "$file" "$MONTH_DIR/"
-                ((photo_count++))
+                YEAR=$(date -r "$file" +"%Y"); MONTH=$(date -r "$file" +"%m")
+                mkdir -p "$TARGET_DIR/Photos/$YEAR-$MONTH"
+                mv "$file" "$TARGET_DIR/Photos/$YEAR-$MONTH/"
+                ((ph_count++))
             fi
         fi
     done
-    echo -e "${GREEN}[✓] Success! screenshots moved: $screenshot_count, photos sorted: $photo_count.${NC}"
+    echo -e "${GREEN}[✓] Operation Successful. Screenshots Isolated: $sc_count | Sorted Photos: $ph_count${NC}"
     read -p "Press [Enter] to return..."
 }
 
-# 2. Wireless Phone-to-PC Share
+# 2. Wireless File Sharing Link
 wireless_share() {
-    echo -e "\n${GREEN}[+] Initializing Wireless HTTP Server...${NC}"
+    echo -e "\n${GREEN}[+] Initializing Wireless Web Data Node...${NC}"
     init_storage
     ip_addr=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
-    if [ -z "$ip_addr" ]; then
-        ip_addr=$(ip a show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
-    fi
+    if [ -z "$ip_addr" ]; then ip_addr=$(ip a show wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d/ -f1); fi
     
     if [ -z "$ip_addr" ]; then
-        echo -e "${RED}[!] Connection Error: Ensure you are linked to Wi-Fi or Hotspot.${NC}"
+        echo -e "${RED}[!] Local Network Interface Offline. Connect to Wi-Fi/Hotspot.${NC}"
     else
-        echo -e "${YELLOW}[!] Server running on your local network!${NC}"
-        echo -e "${CYAN}--> On your PC browser, go to: http://$ip_addr:8080${NC}"
-        echo -e "${RED}Press [CTRL + C] inside Termux to shut down the server.${NC}\n"
+        echo -e "${YELLOW}[!] Web Server Broadcasting! Access via external local browser:${NC}"
+        echo -e "${LIGHT_GREEN}--> Target Link: http://$ip_addr:8080${NC}"
+        echo -e "${RED}[!] To terminate server broadcast, press [CTRL + C]${NC}\n"
         cd "$HOME/storage" && python -m http.server 8080
     fi
     read -p "Press [Enter] to return..."
 }
 
-# 3. Lightning File Finder
-file_finder() {
-    echo -e "\n${GREEN}[+] Lightning File Finder${NC}"
-    init_storage
-    echo -n "Enter partial or full filename to search: "
-    read -r search_term
-    echo -e "${CYAN}[*] Searching phone storage (this may take a moment)...${NC}"
-    find "$HOME/storage" -iname "*$search_term*" 2>/dev/null
-    echo ""
-    read -p "Search complete. Press [Enter] to return..."
-}
-
-# 4. Universal Media Ripper
+# 3. Media Downloader Engine
 media_ripper() {
-    echo -e "\n${GREEN}[+] Universal Media Ripper${NC}"
+    echo -e "\n${GREEN}[+] Initializing Universal Media Stream Extraction...${NC}"
     init_storage
-    echo -n "Paste video/playlist URL: "
+    echo -n " [?] Paste Target Video Source URL: "
     read -r media_url
-    echo -e "Choose format:\n1) Video (MP4)\n2) Audio Only (MP3)"
-    echo -n "Selection [1-2]: "
-    read -r format_opt
-    
     DOWNLOAD_DIR="$HOME/storage/downloads/TermuxRippedMedia"
     mkdir -p "$DOWNLOAD_DIR" && cd "$DOWNLOAD_DIR" || exit
-    
-    if [ "$format_opt" == "2" ]; then
-        yt-dlp -x --audio-format mp3 "$media_url"
-    else
-        yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "$media_url"
-    fi
-    echo -e "${GREEN}[✓] Saved into Phone Downloads -> TermuxRippedMedia folder.${NC}"
+    echo -e "${CYAN}[*] Fetching encryption layers and ripping video streams...${NC}"
+    yt-dlp "$media_url"
+    echo -e "${GREEN}[✓] Payload intercept complete. File dropped into /Downloads/TermuxRippedMedia/${NC}"
     read -p "Press [Enter] to return..."
 }
 
-# 5. App Fast-Launcher
+# 4. App Fast-Launcher
 app_launcher() {
-    echo -e "\n${GREEN}[+] Android App Fast-Launcher${NC}"
-    echo -e "Select app to launch:\n1) WhatsApp\n2) YouTube\n3) Android Settings\n4) Chrome"
-    echo -n "Selection [1-4]: "
+    echo -e "\n${GREEN}[+] Mapping Android Component Manager...${NC}"
+    echo -e " 1) WhatsApp  2) YouTube  3) Android Settings  4) Google Chrome Browser"
+    echo -n " [?] Select target component to inject [1-4]: "
     read -r app_opt
     case $app_opt in
         1) am start -n com.whatsapp/.Main ;;
         2) am start -n com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.WatchWhileActivity ;;
         3) am start -a android.settings.SETTINGS ;;
         4) am start -n com.android.chrome/com.google.android.apps.chrome.Main ;;
-        *) echo -e "${RED}[!] Invalid Choice.${NC}" ;;
+        *) echo -e "${RED}[!] Injection failed: Invalid target signature.${NC}" ;;
     esac
     sleep 1
 }
 
-# 6. Text Editor Portal
+# 5. Note Workspace
 text_portal() {
-    echo -e "\n${GREEN}[+] Text Editor Portal${NC}"
-    NOTES_DIR="$HOME/storage/documents/TermuxNotes"
-    mkdir -p "$NOTES_DIR"
-    echo -e "1) Create New Note\n2) Open/Edit Existing Note"
-    echo -n "Selection [1-2]: "
-    read -r note_opt
-    if [ "$note_opt" == "1" ]; then
-        echo -n "Enter title for new note (e.g., shopping.txt): "
-        read -r note_title
-        nano "$NOTES_DIR/$note_title"
-    else
-        echo -e "${CYAN}[*] Current saved notes:${NC}"
-        ls "$NOTES_DIR"
-        echo -n "Enter exact filename to edit: "
-        read -r edit_title
-        nano "$NOTES_DIR/$edit_title"
-    fi
+    echo -e "\n${GREEN}[+] Opening Secure Local Text Framework...${NC}"
+    echo -n " [?] Title of file to compile (e.g., system_logs.txt): "
+    read -r note_title
+    nano "$HOME/$note_title"
 }
 
-# 7. Wireless ADB Remote Controller
-adb_controller() {
-    if [ ! -x "$(command -v adb)" ]; then
-        echo -e "\n${YELLOW}[*] Installing Android ADB tools suite...${NC}"
-        pkg install android-tools -y
-    fi
-
+# 6. Automated Thermal Battery Watchdog
+battery_watchdog() {
+    clear
+    echo -e "${YELLOW}=======================================================${NC}"
+    echo -e "   [!] AUTOMATED THERMAL SYSTEM GUARD & DAEMON ACTIVE  "
+    echo -e "${YELLOW}=======================================================${NC}"
+    echo -e "${CYAN}[*] Monitoring loop initialized. Running security cycle every 5 seconds...${NC}"
+    echo -e "${RED}[!] Press [CTRL + C] to terminate the monitoring daemon.${NC}\n"
+    sleep 1
+    
     while true; do
-        clear
-        echo -e "${GREEN}===========================================${NC}"
-        echo -e "${CYAN}         WIRELESS ADB REMOTE CONTROLLER      ${NC}"
-        echo -e "${GREEN}===========================================${NC}"
-        echo -e "${YELLOW}1)${NC} Pair Target Device (First Time Only)"
-        echo -e "${YELLOW}2)${NC} Connect to Target Device"
-        echo -e "${YELLOW}3)${NC} Open Remote Terminal Shell (Full Control)"
-        echo -e "${YELLOW}4)${NC} Launch App on Target (YouTube)"
-        echo -e "${YELLOW}5)${NC} Force Target Phone Reboot"
-        echo -e "${YELLOW}6)${NC} Disconnect / Stop ADB Server"
-        echo -e "${YELLOW}7)${NC} Return to Main Menu"
-        echo -e "${GREEN}===========================================${NC}"
-        echo -n "Select an action [1-7]: "
-        read -r adb_opt
-
-        case $adb_opt in
-            1)
-                echo -e "\n${CYAN}[*] Open Wireless Debugging -> 'Pair device with pairing code' on target phone.${NC}"
-                echo -n "Enter Pairing IP & Port (e.g., 192.168.43.50:41233): "
-                read -r pair_ip
-                adb pair "$pair_ip"
-                read -p "Press [Enter] to continue..."
-                ;;
-            2)
-                echo -n "Enter Main Wireless Debugging IP & Port (e.g., 192.168.43.50:38455): "
-                read -r target_ip
-                adb connect "$target_ip"
-                sleep 2
-                adb devices
-                read -p "Press [Enter] to continue..."
-                ;;
-            3)
-                echo -e "\n${GREEN}[+] Dropping into target phone shell. Type 'exit' to leave.${NC}"
-                adb shell
-                ;;
-            4)
-                echo -e "\n${GREEN}[+] Launching YouTube on target device...${NC}"
-                adb shell am start -n com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.WatchWhileActivity
-                sleep 1
-                ;;
-            5)
-                echo -e "\n${RED}[!] Sending hardware reboot command to target...${NC}"
-                adb reboot
-                sleep 1
-                ;;
-            6)
-                adb disconnect
-                adb kill-server
-                echo -e "${YELLOW}[*] ADB Server shut down.${NC}"
-                sleep 2
-                ;;
-            7) return ;;
-            *) echo -e "${RED}[!] Invalid Choice.${NC}"; sleep 1 ;;
-        esac
+        # Extract temperature and percentage values using system commands
+        stats=$(termux-battery-status 2>/dev/null)
+        pct=$(echo "$stats" | grep -i "percentage" | tr -cd '0-9')
+        temp=$(echo "$stats" | grep -i "temperature" | tr -cd '0-9')
+        # Format temperature decimal point
+        real_temp="${temp:0:2}.${temp:2:1}"
+        
+        echo -e "-> ${GREEN}[GUARD DATA]${NC} Battery Charge: ${LIGHT_GREEN}${pct}%${NC} | Motherboard Temperature: ${YELLOW}${real_temp}°C${NC}"
+        
+        # Trigger physical feedback alerts if rules match
+        if [ "$pct" -ge 80 ]; then
+            termux-toast "Battery Protection Triggered: Charged to stable 80%"
+            termux-vibrate -d 300
+        fi
+        
+        # Check for overheat parameters
+        if [ "${temp:0:2}" -ge 42 ]; then
+            echo -e "${FLASH_RED}[CRITICAL WARNING] HARDWARE OVERHEATING DETECTED!${NC}"
+            termux-vibrate -d 1000
+        fi
+        sleep 5
     done
 }
 
-# Main Event Loop
+# 7. Interactive Cyber-Threat Matrix (Hollywood Hacker Simulator)
+cyber_simulator() {
+    clear
+    echo -e "${GREEN}[+] Booting Decryption Cryptographic Layer...${NC}"
+    sleep 1
+    
+    # Fast scrolling matrix sequence
+    for i in {1..80}; do
+        rand1=$((RANDOM % 255)); rand2=$((RANDOM % 255)); rand3=$((RANDOM % 255)); rand4=$((RANDOM % 255))
+        ports_arr=(22 80 443 8080 3306 21 445)
+        rand_port=${ports_arr[$((RANDOM % 7))]}
+        
+        if [ $((i % 4)) -eq 0 ]; then
+            echo -e "${FLASH_RED}[CRITICAL INTRUSION DETECTED]${NC} Port Scan matching signature on Local Host :$rand_port"
+        elif [ $((i % 3)) -eq 0 ]; then
+            echo -e "${CYAN}[INFO]${NC} Routing outgoing data blocks through encryption tunnel -> Proxy IP: $rand1.$rand2.$rand3.$rand4"
+        else
+            echo -e "${GREEN}[OK]${NC} Decrypting system handshake array packet [0x${rand1}FF${rand3}A:${rand_port}]... ${LIGHT_GREEN}SUCCESS${NC}"
+        fi
+        usleep 40000
+    done
+
+    echo -e "\n${YELLOW}=== NETWORK TELEMETRY SWEEP COMPLETE ===${NC}"
+    echo -e " Local Interfaces Scanned: ${LIGHT_GREEN}wlan0, lo, rmnet_data0${NC}"
+    echo -e " Cryptographic Grid Status: ${LIGHT_GREEN}STABLE & DECRYPTED${NC}"
+    echo -e "${RED}Warning: Screen tracking records compiled.${NC}\n"
+    read -p "Press [Enter] to disconnect from matrix network..."
+}
+
+# Main Event Execution Loop
 while true; do
     show_menu
     read -r opt
     case $opt in
         1) organize_images ;;
         2) wireless_share ;;
-        3) file_finder ;;
-        4) media_ripper ;;
-        5) app_launcher ;;
-        6) text_portal ;;
-        7) adb_controller ;;
-        8) echo -e "\n${YELLOW}Goodbye!${NC}"; exit 0 ;;
-        *) echo -e "\n${RED}[!] Invalid option!${NC}"; sleep 1 ;;
+        3) media_ripper ;;
+        4) app_launcher ;;
+        5) text_portal ;;
+        6) battery_watchdog ;;
+        7) cyber_simulator ;;
+        8) echo -e "\n${YELLOW}[!] Shutting down tactical interfaces... Goodbye!${NC}"; exit 0 ;;
+        *) echo -e "\n${RED}[!] Directive unreadable. Re-input parameter.${NC}"; sleep 1 ;;
     esac
 done
