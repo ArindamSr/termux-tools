@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Ultimate Termux Phone Manager Dashboard
-# All-in-one suite for file organization, media ripping, wireless sharing, and app launching.
+# All-in-one suite for file organization, media ripping, wireless sharing, app launching, and remote ADB control.
 
 # Colors for UI
 GREEN='\033[0;32m'
@@ -29,9 +29,10 @@ show_menu() {
     echo -e "${YELLOW}4)${NC} Universal Media Ripper (Video/Audio Downloader)"
     echo -e "${YELLOW}5)${NC} App Fast-Launcher (Open Android Apps)"
     echo -e "${YELLOW}6)${NC} Text Editor Portal (Quick Notes & Docs)"
-    echo -e "${YELLOW}7)${NC} Exit Dashboard"
+    echo -e "${GREEN}7)${NC} Wireless ADB Remote Controller"
+    echo -e "${YELLOW}8)${NC} Exit Dashboard"
     echo -e "${CYAN}===========================================${NC}"
-    echo -n "Select an option [1-7]: "
+    echo -n "Select an option [1-8]: "
 }
 
 # 1. Bulk Image Organizer
@@ -167,6 +168,71 @@ text_portal() {
     fi
 }
 
+# 7. Wireless ADB Remote Controller
+adb_controller() {
+    if [ ! -x "$(command -v adb)" ]; then
+        echo -e "\n${YELLOW}[*] Installing Android ADB tools suite...${NC}"
+        pkg install android-tools -y
+    fi
+
+    while true; do
+        clear
+        echo -e "${GREEN}===========================================${NC}"
+        echo -e "${CYAN}         WIRELESS ADB REMOTE CONTROLLER      ${NC}"
+        echo -e "${GREEN}===========================================${NC}"
+        echo -e "${YELLOW}1)${NC} Pair Target Device (First Time Only)"
+        echo -e "${YELLOW}2)${NC} Connect to Target Device"
+        echo -e "${YELLOW}3)${NC} Open Remote Terminal Shell (Full Control)"
+        echo -e "${YELLOW}4)${NC} Launch App on Target (YouTube)"
+        echo -e "${YELLOW}5)${NC} Force Target Phone Reboot"
+        echo -e "${YELLOW}6)${NC} Disconnect / Stop ADB Server"
+        echo -e "${YELLOW}7)${NC} Return to Main Menu"
+        echo -e "${GREEN}===========================================${NC}"
+        echo -n "Select an action [1-7]: "
+        read -r adb_opt
+
+        case $adb_opt in
+            1)
+                echo -e "\n${CYAN}[*] Open Wireless Debugging -> 'Pair device with pairing code' on target phone.${NC}"
+                echo -n "Enter Pairing IP & Port (e.g., 192.168.43.50:41233): "
+                read -r pair_ip
+                adb pair "$pair_ip"
+                read -p "Press [Enter] to continue..."
+                ;;
+            2)
+                echo -n "Enter Main Wireless Debugging IP & Port (e.g., 192.168.43.50:38455): "
+                read -r target_ip
+                adb connect "$target_ip"
+                sleep 2
+                adb devices
+                read -p "Press [Enter] to continue..."
+                ;;
+            3)
+                echo -e "\n${GREEN}[+] Dropping into target phone shell. Type 'exit' to leave.${NC}"
+                adb shell
+                ;;
+            4)
+                echo -e "\n${GREEN}[+] Launching YouTube on target device...${NC}"
+                adb shell am start -n com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.WatchWhileActivity
+                sleep 1
+                ;;
+            5)
+                echo -e "\n${RED}[!] Sending hardware reboot command to target...${NC}"
+                adb reboot
+                sleep 1
+                ;;
+            6)
+                adb disconnect
+                adb kill-server
+                echo -e "${YELLOW}[*] ADB Server shut down.${NC}"
+                sleep 2
+                ;;
+            7) return ;;
+            *) echo -e "${RED}[!] Invalid Choice.${NC}"; sleep 1 ;;
+        esac
+    done
+}
+
 # Main Event Loop
 while true; do
     show_menu
@@ -178,7 +244,8 @@ while true; do
         4) media_ripper ;;
         5) app_launcher ;;
         6) text_portal ;;
-        7) echo -e "\n${YELLOW}Goodbye!${NC}"; exit 0 ;;
+        7) adb_controller ;;
+        8) echo -e "\n${YELLOW}Goodbye!${NC}"; exit 0 ;;
         *) echo -e "\n${RED}[!] Invalid option!${NC}"; sleep 1 ;;
     esac
 done
