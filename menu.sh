@@ -9,7 +9,7 @@
 #   yt-dlp
 #   gpg
 #   Gemini API key for AI features:
-#       export GEMINI_API_KEY="YOUR_KEY"
+#       export GEMINI_API_KEY="AIzaSyAU8C7dKT5CNPCxKIjrPlD1qyM_D5xxwXo"
 #
 # AI Command Pilot is intentionally confirmation-based.
 # It does NOT blindly execute arbitrary AI-generated commands.
