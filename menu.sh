@@ -730,6 +730,174 @@ ai_duplicate() {
     pause
 }
 
+# ---------- AI natural-language copilot ----------
+ai_copilot() {
+    title; section "AI // NATURAL-LANGUAGE PHONE COPILOT"
+    ensure_ai_ready || { pause; return; }
+    ensure_pkg python python || { pause; return; }
+    printf "%b\\n" "${CYAN}${BOLD}Talk normally. No /commands required.${RESET}"
+    printf "%b\\n" "${DIM}Chat + web/image/video search + downloads + phone/file actions.${RESET}"
+    printf "%b\\n" "${YELLOW}Searches may run automatically. Downloads, file changes, app launches and shell/device actions always ask first.${RESET}"
+    printf "%b\\n" "${DIM}Type /exit to leave.${RESET}"
+    local history="$LOG_DIR/copilot-history.jsonl"
+    touch "$history"; chmod 600 "$history"
+
+    GEMINI_API_KEY="$GEMINI_API_KEY" GEMINI_MODEL="$GEMINI_MODEL" COPILOT_HISTORY="$history" python - <<'PYAI'
+import json, os, re, subprocess, urllib.parse, urllib.request, urllib.error, html, shutil
+from pathlib import Path
+
+KEY=os.environ["GEMINI_API_KEY"]
+MODEL=os.environ["GEMINI_MODEL"]
+HISTORY=Path(os.environ["COPILOT_HISTORY"])
+DOWNLOAD=Path.home()/"storage"/"shared"/"Download"
+DOWNLOAD.mkdir(parents=True, exist_ok=True)
+
+SYSTEM="""
+You are a natural-language AI copilot running inside the user's own Android Termux phone.
+Talk like a normal conversational assistant. Never require slash commands.
+You can propose broad Termux/Android actions. Any action that changes files, downloads content, launches an app, changes device state, or executes a shell command requires explicit user approval before execution.
+For web/image/video requests, use real search results supplied by local tools. Never invent a URL.
+For downloads, do not bypass DRM, authentication, paywalls, or access controls, and respect the source's permissions/terms.
+Return STRICT JSON only: {"reply": string, "actions": array}.
+Allowed actions: web_search(query), image_search(query), video_search(query), download(url,filename), shell(command), open_url(url).
+Search actions are informational and can run automatically. download/shell/open_url require confirmation.
+Do not claim success until a local tool reports success.
+"""
+
+def gemini(messages):
+    url=f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={urllib.parse.quote(KEY)}"
+    body={"system_instruction":{"parts":[{"text":SYSTEM}]},"contents":messages,"generationConfig":{"temperature":0.25}}
+    req=urllib.request.Request(url,data=json.dumps(body).encode(),headers={"Content-Type":"application/json"})
+    with urllib.request.urlopen(req,timeout=90) as r: data=json.load(r)
+    text=data.get("candidates",[{}])[0].get("content",{}).get("parts",[{}])[0].get("text","").strip()
+    if text.startswith("```"): text=re.sub(r"^```(?:json)?\\s*|\\s*```$","",text,flags=re.I|re.S).strip()
+    try: return json.loads(text)
+    except Exception:
+        m=re.search(r"\\{.*\\}",text,re.S)
+        return json.loads(m.group(0)) if m else {"reply":text,"actions":[]}
+
+def bing(query,kind):
+    q=urllib.parse.quote(query)
+    base={"web":"https://www.bing.com/search?q=","image":"https://www.bing.com/images/search?q=","video":"https://www.bing.com/videos/search?q="}[kind]
+    req=urllib.request.Request(base+q,headers={"User-Agent":"Mozilla/5.0"})
+    with urllib.request.urlopen(req,timeout=25) as r: page=r.read().decode("utf-8","replace")
+    out=[]
+    if kind=="image":
+        # Bing embeds original image URLs in result metadata.
+        pat=r'"murl":"(.*?)".*?"t":"(.*?)"'
+        for m in re.finditer(pat,page):
+            u=bytes(m.group(1),"utf-8").decode("unicode_escape","ignore")
+            t=html.unescape(re.sub(r"<.*?>","",m.group(2)))
+            if u.startswith("http") and not any(x["url"]==u for x in out): out.append({"title":t[:160],"url":u})
+            if len(out)>=8: break
+    else:
+        pat=r'<li class="b_algo".*?<h2><a href="([^"]+)"[^>]*>(.*?)</a>.*?(?:<p>(.*?)</p>)?'
+        for m in re.finditer(pat,page,re.I|re.S):
+            u=html.unescape(m.group(1)); t=html.unescape(re.sub(r"<.*?>","",m.group(2))).strip(); d=html.unescape(re.sub(r"<.*?>","",m.group(3) or "")).strip()
+            if u.startswith("http") and not any(x["url"]==u for x in out): out.append({"title":t[:160],"url":u,"snippet":d[:260]})
+            if len(out)>=8: break
+    return out
+
+def show(kind,res):
+    print(f"\\n[REAL {kind.upper()} RESULTS]")
+    if not res: print("No usable results extracted."); return
+    for i,x in enumerate(res,1):
+        print(f"{i}. {x.get('title','(untitled)')}\\n   {x['url']}")
+        if x.get("snippet"): print("   "+x["snippet"])
+
+def ask(text):
+    print("\\n"+text+"\\nAllow? [Y/N]: ",end="",flush=True)
+    return input().strip().lower() in ("y","yes")
+
+def allowed_shell(cmd):
+    # Keeps the copilot broad, while blocking a small catastrophic floor.
+    bad=[r'(^|[;&|])\\s*rm\\s+-rf\\s+/(?:\\s|$)',r'(^|[;&|])\\s*mkfs(?:\\s|$)',r'(^|[;&|])\\s*dd\\s+if=',r':\\(\\)\\s*\\{\\s*:;\\s*\\}\\s*;\\s*:',r'curl[^|]*\\|\\s*(?:sh|bash)',r'wget[^|]*\\|\\s*(?:sh|bash)']
+    return not any(re.search(x,cmd,re.I) for x in bad)
+
+def save(role,text):
+    try:
+        with HISTORY.open("a",encoding="utf-8") as f: f.write(json.dumps({"role":role,"text":text},ensure_ascii=False)+"\\n")
+    except Exception: pass
+
+messages=[]
+print("\\n"+"═"*62+"\\n   AI COPILOT // NATURAL LANGUAGE // ONLINE\\n"+"═"*62)
+while True:
+    try: user=input("\\nYOU › ").strip()
+    except (EOFError,KeyboardInterrupt): print(); break
+    if not user: continue
+    if user.lower() in ("/exit","exit","quit"): break
+    save("user",user); messages.append({"role":"user","parts":[{"text":user}]})
+    try: plan=gemini(messages)
+    except Exception as e:
+        print("\\n[AI ERROR]",e); messages.pop(); continue
+    reply=str(plan.get("reply","")).strip(); actions=plan.get("actions") or []
+    if reply: print("\\nAI › "+reply); save("assistant",reply)
+
+    # First pass: execute only information-gathering searches, then send real results back to Gemini.
+    contexts=[]
+    for a in actions:
+        typ=a.get("type")
+        if typ in ("web_search","image_search","video_search"):
+            q=str(a.get("query","")).strip()
+            if not q: continue
+            kind={"web_search":"web","image_search":"image","video_search":"video"}[typ]
+            try:
+                res=bing(q,kind); show(kind,res); contexts.append({"type":typ,"query":q,"results":res})
+            except Exception as e: contexts.append({"type":typ,"query":q,"error":str(e)})
+
+    if contexts:
+        tool_msg="REAL LOCAL SEARCH RESULTS (use only these URLs; do not invent URLs):\\n"+json.dumps(contexts,ensure_ascii=False)
+        messages.append({"role":"user","parts":[{"text":tool_msg}]})
+        try: follow=gemini(messages)
+        except Exception as e: print("\\n[AI ERROR]",e); messages.pop(); continue
+        messages.pop()
+        if follow.get("reply"): print("\\nAI › "+str(follow["reply"]).strip())
+        actions=follow.get("actions") or []
+
+    for a in actions:
+        typ=a.get("type")
+        if typ=="download":
+            url=str(a.get("url","")).strip()
+            if not url.startswith("http"): print("[!] Invalid download URL."); continue
+            name=str(a.get("filename") or Path(urllib.parse.urlparse(url).path).name or "downloaded_file")
+            name=re.sub(r'[^A-Za-z0-9._ -]','_',name)[:180] or "downloaded_file"
+            dest=DOWNLOAD/name
+            if not ask(f"DOWNLOAD\\nURL: {url}\\nSAVE: {dest}"): print("[✗] Cancelled."); continue
+            try:
+                # yt-dlp handles supported media pages; direct URLs fall back to HTTP.
+                if shutil.which("yt-dlp") and (any(x in url.lower() for x in ("youtube.com","youtu.be","vimeo.com","tiktok.com")) or not Path(urllib.parse.urlparse(url).path).suffix):
+                    rc=subprocess.run(["yt-dlp","-o",str(dest),url]).returncode
+                else:
+                    req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0"})
+                    with urllib.request.urlopen(req,timeout=120) as r, open(dest,"wb") as f:
+                        while True:
+                            chunk=r.read(1024*1024)
+                            if not chunk: break
+                            f.write(chunk)
+                    rc=0
+                if rc==0 and dest.exists(): print(f"[✓] Saved to {dest}"); save("tool",f"Downloaded {dest}")
+                else: print("[✗] Download failed.")
+            except Exception as e: print("[✗] Download failed:",e)
+        elif typ=="shell":
+            cmd=str(a.get("command","")).strip()
+            if not cmd: continue
+            if not allowed_shell(cmd): print("[✗] Blocked catastrophic command pattern."); continue
+            if not ask("EXECUTE ON THIS TERMUX PHONE\\n$ "+cmd): print("[✗] Cancelled."); continue
+            try:
+                rc=subprocess.run(cmd,shell=True).returncode
+                print(f"[✓] Command finished with exit code {rc}."); save("tool",f"Shell exit {rc}: {cmd}")
+            except Exception as e: print("[✗] Command failed:",e)
+        elif typ=="open_url":
+            url=str(a.get("url","")).strip()
+            if url.startswith("http") and ask("OPEN IN ANDROID\\n"+url):
+                subprocess.run(["am","start","-a","android.intent.action.VIEW","-d",url],check=False)
+                print("[✓] Android open request sent.")
+print("\\nAI COPILOT OFFLINE")
+PYAI
+    event "AI Natural-Language Copilot used"
+    pause
+}
+
 # ---------- AI menu ----------
 ai_menu() {
     # First entry into AI always checks BYOK configuration.
@@ -763,6 +931,7 @@ ai_menu() {
 "  ${CYAN}18${RESET} 🧠⚡ Phone Oracle" \
 "  ${CYAN}19${RESET} 🔐 BYOK / API + Model" \
 "  ${CYAN}20${RESET} 🤖⚡ AI Command Pilot" \
+"  ${CYAN}21${RESET} 🧠💬 Natural-Language AI Copilot" \
 "  ${CYAN}00${RESET} ← Back"
         printf "\nSelect: "; read -r c
         case "$c" in
@@ -786,6 +955,7 @@ ai_menu() {
           18) ai_phone_oracle ;;
           19) ai_config ;;
           20) ai_command_pilot ;;
+          21) ai_copilot ;;
           0|00) return ;;
           *) warn "Invalid option."; sleep 1 ;;
         esac
