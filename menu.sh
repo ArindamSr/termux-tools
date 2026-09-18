@@ -8,8 +8,8 @@
 #   Python
 #   yt-dlp
 #   gpg
-#   Gemini API key for AI features:
-#       export GEMINI_API_KEY="AIzaSyAU8C7dKT5CNPCxKIjrPlD1qyM_D5xxwXo"
+#   AI uses BYOK: configure Gemini API key + model from the AI menu.
+#   Configuration is stored at ~/.termux-tools/config (chmod 600).
 #
 # AI Command Pilot is intentionally confirmation-based.
 # It does NOT blindly execute arbitrary AI-generated commands.
@@ -352,41 +352,112 @@ encrypted_vault() {
 
 # ---------- AI ----------
 ai_config() {
-    title; section "AI // CONFIG"
+    title; section "AI // BYOK CONFIGURATION"
+
+    printf "%b\n" "${CYAN}${BOLD}🔐 BRING YOUR OWN KEY (BYOK)${RESET}"
+    printf "%b\n" "${DIM}Your Gemini API key is stored locally on this phone only.${RESET}"
+    printf "%b\n\n" "${YELLOW}Never commit ~/.termux-tools/config to GitHub.${RESET}"
+
     if [[ -n "${GEMINI_API_KEY:-}" ]]; then
-        ok "GEMINI_API_KEY is configured in this shell."
+        printf "%b\n" "${GREEN}✓ Gemini API key: configured${RESET}"
+        printf "Replace existing key? [y/N]: "
+        read -r replace
+        if [[ ! "$replace" =~ ^[Yy]$ ]]; then
+            :
+        else
+            printf "Gemini API key (hidden): "
+            read -rs key; echo
+            [[ -n "$key" ]] && GEMINI_API_KEY="$key"
+        fi
     else
-        warn "GEMINI_API_KEY is not set."
-        printf "Paste Gemini API key (input hidden): "
+        printf "Gemini API key (hidden): "
         read -rs key; echo
-        [[ -n "$key" ]] || { warn "No key entered."; pause; return; }
-        printf 'export GEMINI_API_KEY=%q\n' "$key" > "$CONFIG"
-        export GEMINI_API_KEY="$key"
-        chmod 600 "$CONFIG"
-        ok "Saved locally to $CONFIG"
+        [[ -n "$key" ]] || { warn "No API key entered."; pause; return 1; }
+        GEMINI_API_KEY="$key"
     fi
+
+    export GEMINI_API_KEY
+
+    printf "\n%b\n" "${CYAN}${BOLD}🤖 SELECT GEMINI MODEL${RESET}"
+    printf "%b\n" \
+      "  ${CYAN}1${RESET} gemini-2.5-flash  ${DIM}(fast / recommended)${RESET}" \
+      "  ${CYAN}2${RESET} gemini-2.5-pro    ${DIM}(stronger reasoning)${RESET}" \
+      "  ${CYAN}3${RESET} Custom model name"
+    printf "Model [1]: "
+    read -r mc
+
+    case "$mc" in
+      2) GEMINI_MODEL="gemini-2.5-pro" ;;
+      3)
+        printf "Model name: "
+        read -r custom
+        [[ -n "$custom" ]] && GEMINI_MODEL="$custom" || GEMINI_MODEL="gemini-2.5-flash"
+        ;;
+      *) GEMINI_MODEL="gemini-2.5-flash" ;;
+    esac
+
+    # Save only the API configuration locally, never to the repository.
+    umask 077
+    {
+        printf 'export GEMINI_API_KEY=%q\n' "$GEMINI_API_KEY"
+        printf 'export GEMINI_MODEL=%q\n' "$GEMINI_MODEL"
+    } > "$CONFIG"
+    chmod 600 "$CONFIG"
+
+    ok "BYOK configured."
+    printf "Model: %b%s%b\n" "${GREEN}" "$GEMINI_MODEL" "${RESET}"
     pause
+}
+
+ensure_ai_ready() {
+    # Every AI feature goes through this gate.
+    if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+        title
+        section "AI // BYOK REQUIRED"
+        warn "AI is not configured yet."
+        printf "\nGemini API key and model are required before using AI features.\n"
+        printf "Open BYOK setup now? [Y/n]: "
+        read -r a
+        if [[ -z "$a" || "$a" =~ ^[Yy]$ ]]; then
+            ai_config
+        fi
+    fi
+
+    [[ -n "${GEMINI_API_KEY:-}" ]] || {
+        err "AI cancelled: Gemini API key is not configured."
+        return 1
+    }
+
+    if [[ -z "${GEMINI_MODEL:-}" ]]; then
+        ai_config
+    fi
+
+    [[ -n "${GEMINI_MODEL:-}" ]] || {
+        err "AI cancelled: no Gemini model selected."
+        return 1
+    }
+    return 0
 }
 
 ai_call() {
     # Reads prompt from stdin and returns model text.
     local prompt
     prompt="$(cat)"
-    [[ -n "${GEMINI_API_KEY:-}" ]] || {
-        err "AI key missing. Open AI > Configure AI first."
-        return 1
-    }
+    ensure_ai_ready || return 1
     ensure_pkg curl curl >/dev/null || return 1
-    python - "$GEMINI_API_KEY" "$prompt" <<'PY'
-import json,sys,urllib.request
-key=sys.argv[1]; prompt=sys.argv[2]
-url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+key
+    python - "$GEMINI_API_KEY" "$GEMINI_MODEL" "$prompt" <<'PY'
+import json,sys,urllib.request,urllib.error
+key=sys.argv[1]; model=sys.argv[2]; prompt=sys.argv[3]
+url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+key
 body=json.dumps({"contents":[{"parts":[{"text":prompt}]}]}).encode()
 req=urllib.request.Request(url,data=body,headers={"Content-Type":"application/json"})
 try:
-    with urllib.request.urlopen(req,timeout=45) as r:
+    with urllib.request.urlopen(req,timeout=60) as r:
         data=json.load(r)
     print(data["candidates"][0]["content"]["parts"][0]["text"])
+except urllib.error.HTTPError as e:
+    detail=e.read().decode(errors="replace")
+    print("AI request failed (HTTP %s): %s" % (e.code, detail))
 except Exception as e:
     print("AI request failed:",e)
 PY
@@ -661,9 +732,16 @@ ai_duplicate() {
 
 # ---------- AI menu ----------
 ai_menu() {
+    # First entry into AI always checks BYOK configuration.
+    if ! ensure_ai_ready; then
+        pause
+        return
+    fi
     while true; do
         title
         section "AI // PHONE INTELLIGENCE"
+        printf "%b
+" "${GREEN}● BYOK: Gemini${RESET}  ${DIM}Model: ${GEMINI_MODEL}${RESET}"
         printf "%b\n" \
 "  ${CYAN}01${RESET} 🧠 Notification Brain" \
 "  ${CYAN}02${RESET} 🤖 Notification Auto-Reply (suggestions)" \
@@ -683,7 +761,7 @@ ai_menu() {
 "  ${CYAN}16${RESET} 🛡️ Privacy Scanner" \
 "  ${CYAN}17${RESET} 🤯 Explain My Phone" \
 "  ${CYAN}18${RESET} 🧠⚡ Phone Oracle" \
-"  ${CYAN}19${RESET} ⚙️ Configure AI" \
+"  ${CYAN}19${RESET} 🔐 BYOK / API + Model" \
 "  ${CYAN}20${RESET} 🤖⚡ AI Command Pilot" \
 "  ${CYAN}00${RESET} ← Back"
         printf "\nSelect: "; read -r c
@@ -719,6 +797,8 @@ if [[ -f "$CONFIG" ]]; then
     # shellcheck disable=SC1090
     source "$CONFIG" 2>/dev/null || true
 fi
+# Default model shown during first BYOK setup.
+GEMINI_MODEL="${GEMINI_MODEL:-}"
 
 trap 'printf "%b\n" "${RESET}"; exit 0' INT TERM
 
